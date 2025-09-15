@@ -52,10 +52,15 @@ def get_anthropic_response_for_multiple_events(image: Image.Image):
         image_b64, media_type = image_to_base64(image)
 
         prompt = """
-        Analyze the image of this event flyer and extract ALL distinct event details.
-        Provide the output as a clean, raw JSON ARRAY, where each element in the array
-        is a JSON object representing one event, with these exact keys:
+        Analyze the flyer image and extract ALL distinct event details.
+        Return ONLY a JSON array of objects with the keys:
         "title", "start_time", "end_time", "location", "description".
+
+        Rules:
+        - start_time and end_time MUST be full ISO 8601 datetime strings, including year, month, day, and time (e.g. "2025-11-07T14:00:00-06:00").
+        - If the flyer only says a weekday (e.g. "Friday"), resolve it to the *next upcoming* date for that weekday, assuming the current year.
+        - If the flyer only lists month/day (e.g. "Nov 7"), add the current year.
+        - Never output times without a date.
         """
 
         response = client.messages.create(
@@ -117,22 +122,22 @@ def create_ics_file(event_data: dict) -> str:
     e.description = event_data.get('description', 'No description provided.')
 
     try:
-        begin_dt = date_parser(event_data['start_time'])
-    except (ValueError, KeyError, TypeError):
+        begin_dt = date_parser(event_data['start_time'], default=datetime.now())
+        # If no explicit date was given, parser will fallback to today → warn user
+        if begin_dt.date() == datetime.now().date():
+            st.warning(f"⚠️ '{e.name}' start_time looks like only a time (no date). Defaulted to today.")
+    except Exception:
         begin_dt = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-        st.warning(f"Could not parse start_time for '{e.name}'. Using default: {begin_dt}")
 
     try:
-        end_dt = date_parser(event_data['end_time'])
-    except (ValueError, KeyError, TypeError):
+        end_dt = date_parser(event_data['end_time'], default=begin_dt + timedelta(hours=2))
+    except Exception:
         end_dt = begin_dt + timedelta(hours=2)
-        st.warning(f"Could not parse end_time for '{e.name}'. Using default: {end_dt}")
 
     e.begin = begin_dt
     e.end = end_dt
     c.events.add(e)
     return str(c)
-
 
 def slugify(text: str) -> str:
     text = re.sub(r'[^\w\s-]', '', text).strip().lower()
