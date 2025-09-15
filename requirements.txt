@@ -1,0 +1,8 @@
+streamlit
+google-generativeai
+Pillow
+ics
+python-dateutil
+PyMuPDF
+anthropic
+icalendar
