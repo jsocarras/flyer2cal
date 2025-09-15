@@ -183,7 +183,7 @@ if uploaded_files:
                 continue
         
         if image:
-            with st.spinner("🤖 Claude is analyzing the flyer for all events..."):
+            with st.spinner("🤖 Analyzing the flyer for all events..."):
                 all_extracted_events = get_anthropic_response_for_multiple_events(image)
             
             if all_extracted_events:
