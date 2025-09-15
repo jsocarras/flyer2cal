@@ -9,6 +9,11 @@ import io
 import re
 import anthropic
 import base64
+from datetime import datetime
+import pytz
+
+CURRENT_YEAR = datetime.now().year
+DEFAULT_TZ = pytz.timezone("US/Eastern")
 
 # --- Configuration ---
 st.set_page_config(layout="wide", page_title="Flyer to Calendar", page_icon="📅")
@@ -123,16 +128,31 @@ def create_ics_file(event_data: dict) -> str:
 
     try:
         begin_dt = date_parser(event_data['start_time'], default=datetime.now())
-        # If no explicit date was given, parser will fallback to today → warn user
-        if begin_dt.date() == datetime.now().date():
-            st.warning(f"⚠️ '{e.name}' start_time looks like only a time (no date). Defaulted to today.")
+
+        # Fix year if wrong/missing
+        if begin_dt.year != CURRENT_YEAR:
+            begin_dt = begin_dt.replace(year=CURRENT_YEAR)
+
+        # Apply default timezone if missing
+        if begin_dt.tzinfo is None:
+            begin_dt = DEFAULT_TZ.localize(begin_dt)
+
     except Exception:
-        begin_dt = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        begin_dt = DEFAULT_TZ.localize(datetime.now().replace(hour=9, minute=0, second=0, microsecond=0))
+        st.warning(f"Could not parse start_time for '{e.name}'. Using default: {begin_dt}")
 
     try:
         end_dt = date_parser(event_data['end_time'], default=begin_dt + timedelta(hours=2))
+
+        if end_dt.year != CURRENT_YEAR:
+            end_dt = end_dt.replace(year=CURRENT_YEAR)
+
+        if end_dt.tzinfo is None:
+            end_dt = DEFAULT_TZ.localize(end_dt)
+
     except Exception:
         end_dt = begin_dt + timedelta(hours=2)
+        st.warning(f"Could not parse end_time for '{e.name}'. Using default: {end_dt}")
 
     e.begin = begin_dt
     e.end = end_dt
